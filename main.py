@@ -26,6 +26,10 @@ except Exception:
 
 from vosk import KaldiRecognizer, Model, SetLogLevel
 
+# Значения по умолчанию для маленькой русской модели
+DEFAULT_SMALL_DIR = os.path.join('models', 'vosk-model-small-ru-0.22')
+DEFAULT_SMALL_URL = 'https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip'
+
 
 # ---------------------- ЛОГИРОВАНИЕ ----------------------
 
@@ -290,8 +294,8 @@ def recognize_from_mic(model_path: str, device: Optional[int], samplerate: Optio
 def parse_args():
     p = argparse.ArgumentParser(description="Офлайн распознавание речи на Vosk (микрофон/файл) — простой CLI")
 
-    # --model обязателен и может быть ПАПКОЙ модели ИЛИ URL/ZIP
-    p.add_argument('--model', required=True, help='Путь к папке модели Vosk или URL/путь к ZIP архиву модели')
+    # --model не обязателен: если не указали — используем/скачаем маленькую русскую модель в /models
+    p.add_argument('--model', help='Путь к папке модели Vosk или URL/путь к ZIP архиву модели. По умолчанию: models/vosk-model-small-ru-0.22')
 
     src = p.add_mutually_exclusive_group(required=True)
     src.add_argument('--mic', action='store_true', help='Распознавание с микрофона')
@@ -308,7 +312,7 @@ def parse_args():
     p.add_argument('--grammar-file', help='Путь к файлу со словами/фразами (по одной строке)')
     p.add_argument('--max-alt', type=int, default=0, help='Число альтернативных гипотез (0 — выкл)')
 
-    # Вывод и логи (уровни фиксированы, можно лишь указать файл)
+    # Вывод и логи
     p.add_argument('--save-json', help='Сохранить результаты распознавания в JSON')
     p.add_argument('--log-file', help='Путь к файлу логов приложения')
 
@@ -331,9 +335,18 @@ def main():
             print(f"  [#{d['index']}] {d['name']} | rate={d['default_samplerate']} | ch={d['max_input_channels']}")
         return
 
-    # Подготовка модели (папка или URL/ZIP)
+    # Подготовка модели (папка или URL/ZIP). Если не указали --model — берём маленькую RU модель из /models, при необходимости скачиваем.
     try:
-        model_dir = prepare_model(args.model)
+        if args.model:
+            model_dir = prepare_model(args.model)
+        else:
+            # Нет --model: используем дефолт
+            if _is_valid_model_dir(DEFAULT_SMALL_DIR):
+                logger.info('Использую модель по умолчанию: %s', DEFAULT_SMALL_DIR)
+                model_dir = DEFAULT_SMALL_DIR
+            else:
+                logger.info('Модель по умолчанию не найдена. Скачиваю: %s', DEFAULT_SMALL_URL)
+                model_dir = prepare_model(DEFAULT_SMALL_URL)
     except Exception as e:
         logger.exception('Не удалось подготовить модель: %s', e)
         print('Ошибка подготовки модели. Проверьте путь/URL к модели (можно указать .zip или распакованную папку).')

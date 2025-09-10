@@ -1,0 +1,1 @@
+python main.py --mic --device 1
